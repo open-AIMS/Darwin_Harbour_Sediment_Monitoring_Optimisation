@@ -1,0 +1,757 @@
+---
+title: "An evaluation of Darwin Harbour sediment monitoring design"
+author: "Murray Logan"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  officedown::rdocx_document:
+    reference_docx: resources/ECM_1694746_v2_ReportingTemplate_2019.docx
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: tango
+    toc: yes
+    toc_depth: 2
+    number_sections: no
+    tables:
+      style: Table Grid
+      layout: autofit
+      width: 1.0
+      caption:
+        style: Table Caption
+        pre: 'Tables '
+        sep: ': '
+        tnd: 0
+    plot:
+      caption:
+        style: Image Caption
+        tnd: 0
+    reference_num: true
+    page_margins:
+      bottom: 1
+      top: 1
+      left: 1
+      right: 1
+      header: 0.49
+      footer: 0.49
+      gutter: 0
+    page_size:
+      width: 8.3
+      height: 11.7
+      orient: 'portrait'
+  bookdown::word_document2:
+    reference_docx: resources/ECM_1694746_v2_ReportingTemplate_2019.docx
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: tango
+    toc: yes
+    toc_depth: 2
+    number_sections: no
+    tables:
+      style: Style1-Emphasize1
+      layout: autofit
+    page_margins:
+      bottom: 1
+      top: 1
+      left: 1
+      right: 1
+      header: 0.49
+      footer: 0.49
+      gutter: 0
+    page_size:
+      width: 8.3
+      height: 11.7
+      orient: 'portrait'
+  word_document:
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: tango
+    toc: yes
+    toc_depth: 2
+  page_size:
+    width: 8.3
+    height: 11.7
+    orient: 'portrait'
+output_dir: "docs"
+bibliography: resources/references.bib
+---
+
+<w:updateFields w:val="true"/>
+
+```{r setup, include=FALSE, warnings=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(officedown)
+library(tidyverse)
+library(officer)
+library(rmarkdown)
+library(knitr)
+library(flextable)
+```
+ 
+# Introduction
+
+AIMS previously [@Brinkman-2019] developed a series of spatially
+explicit and randomised designs for benthic sediment sampling in East
+Arm, the Outer Harbour, Middle Arm and West Arm of Darwin Harbour for
+a pilot project within the INPEX-funded Darwin Harbour Integrated
+Marine Monitoring and Research Program (IMMRP).  Subsequently, benthic
+samples were collected at most of the sites in the period between May
+2019 and September 2020, and were analysed for a range of chemical
+constituents in order to establish a comprehensive baseline for
+2019/20.
+
+Using data for copper (Cu), lead (Pb) and zinc (Zn) from the 2019/20
+baseline dataset, this study seeks to find optimal sampling designs
+for cost effectiveness.  Statistical models will be used to find the
+minimum number of sites that could yield similar overall patterns in
+normalised (to Al and Fe) and non-normalised Cu, Pb and Zn
+concentrations.
+
+# Methods
+
+## Data sources
+
+The data used in these analyses were provided by Lynda Radke via email
+and are summarised in Table \@ref(tab:dataSource).  For the purpose of
+these analyses the East, Middle and West Arms are combined into a
+single Inner Habour.
+
+The physiochemical data comprise both raw and _normalised_ versions of
+Copper (Cu), Lead (Pb) and Zinc (Zn) from a collection of designated
+(fixed) and random (free) sites.  The fixed sites serve multiple
+purposes (i.e. they also have a regulatory roll) and thus must be
+preserved throughout the optimisation analyses.  Contrastingly, the
+free sites are dedicated to the sediment monitoring program and thus
+are all potential candidates for optimisation.
+
+For some analyses, normalised versions of the focal measures may be
+preferable as they may be less confounded by other aspects of the
+sediment structure and chemistry. For the current data, normalisations
+were computed against either Aluminium (Al) or Iron (Fe) conditional
+on the Iron to Aluminium ratio:
+
+- when the Fe/AL < 1.3, values are normalised against Al
+- when the Fe/Al > 1.3, values are normalised against Fe
+
+Unfortunately, these different normalisations result in different
+scales (ranges of values) and thus, putting Al and Fe normalised
+values into the one spatial analysis is problematic (particularly
+considering the grain size is confounded over space).
+
+<!-- ```{r data_source, eval=TRUE, echo=FALSE, ft.align="center", tab.cap="metadata", tab.id="data_source", label = "data_source"} -->
+```{r dataSourceTable, eval=TRUE, echo=FALSE, tab.topcaption=TRUE, tab.cap.style = "Table Caption", tab.id='dataSource', label = 'dataSource', tab.cap = 'Metadata of data sources provided by DEPW.'}
+df <- tribble(
+    ~Source, ~Type, ~Format, ~Metadata, ~Objects,
+    "East Arm polygons", "Spatial", "Shapefile", "MULTIPOLYGON, WGS84", "4", 
+    "Outer Harbour polygons", "Spatial", "Shapefile", "GEOMETRY, WGS84", "8",
+    "Middle Harbour and West Arm", "Spatial", "Shapefile", "GEOMETRY, WGS84", "3",
+    "Urbanisation", "Spatial", "Shapefile", "MULTIPOLYGON, WGS84", "38,981",
+    "East Arm sediment monitoring data", "Physiochemical data", "xlsx", "94 rows, 33 columns", "16 fixed, 78 free",
+    "Middle Arm and West Arm sediment monitoring data", "Physiochemical data", "xlsx", "97 rows, 32 columns", "13 fixed, 84 free",
+    "Outer Harbour sediment monitoring data", "xlsx", "Physiochemical data", "91 rows, 35 columns", "17 fixed, 74 free",
+)
+df %>%
+    flextable() %>% 
+    fontsize(size=8, part='all') %>%
+    set_table_properties(layout = "autofit", width = .8) %>% 
+    theme_box()# %>% 
+    ## set_caption("Metadata of data sources provided by DEPW.",
+    ##             style = "Table Caption",
+    ##             autonum = run_autonum(seq_id = "tab",
+    ##                                   bkm = "dataSource")
+    ##             )
+```
+   
+A graphical overview of all the above data sources is presented in Figure \@ref(fig:map).
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/DH_mapFull.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+
+```{r map, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Map of Darwin Harbour featuring the Inner and Outer Harbour sampling regions, the water infrastructure features and the fixed (dark blue symbols) and free (maroon symbols) sediment sampling sites.',fig.id = "map", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/DH_mapFull.png', dpi = 300)
+```
+    
+## Overview of methodology
+
+In looking to **optimise** a sampling design, it is first necessary to
+establish the metrics by which optimisation can be gauged.
+For the current application, we seek to optimise the number (and
+location) of sediment sampling locations such that we can reduce the
+number of samples without loosing too much "information".
+Hence, the metrics of optimisation will be expressed according to the
+(relative) amount of information encapsulated in any given sampling
+configuration.
+
+This information must be quantified with respect to how the data are
+expected to be used.  The current data are expected to be used to
+explore the spatial distribution (and spatio-temporal patterns) of Cu,
+Pb and Zn in the future.  Hence, we could perform such analyses for a
+range of different sample sizes (and locations) and compare the
+resulting patterns.  If we assume that the full current data set
+represents the maximum spatial configuration (and thus yields the most
+complete spatial pattern), the amount of information contained in each
+alternative configuration can be expressed as differences in the
+spatial patterns from this maximum configuration.
+
+There are a large number of ways to interpolate (predict) data over
+space.  One of the simplest, fastest and most widely used techniques
+is called **Inverse distance weighting**.  Inverse distance weighting
+[IDW: @Cressie-1993] is a deterministic smoothing method in which the
+the value of any point in the spatial domain is calculated as the
+<!--that calculates the value of any point in space as the -->
+weighted average of all observed spatial points.  As the name implies,
+the weight of each observed point in calculating a new point is
+inversely proportional to its distance to the new point.  Hence,
+interpolation is driven mostly by the value of promimal observations
+and the influence of neighbouring points deteriorates with increasing
+distance.
+
+<!--
+Kriging
+[@Cressie-1993] is a gaussian process that uses a linear combination
+of observations to make predictions (with uncertainty estimates) at
+unsampled locations.  Kriging begins by estimating the degree to which
+the variability in the magnitude of observations deteriorates with
+increasing distance (the spatial covariance structure) of the observed
+locations.  This is then used to derive weights that can be used to
+interpolate from observed to unobserved points in space.
+-->
+
+Whilst there are certainly many more sophisticated spatial
+interpoliation methods (such as kriging or stochastic partial
+differential equations), most of these alternative proceedures either
+require human tuning for each model or else are too computationally
+expensive to be feasible in in the current context.  For example,
+_kriging_ first requires the construction of a semi-variagram on which
+to inform the covariance structures that are used to construct the
+contributions (weights) of the observed points towards the estimation
+of new points.  Given that optimisation involves performing a very
+large number of spatial interpolations, human input each time is not
+feasible.
+
+The optimisation procedure will comprise the following steps:
+
+1. perform IDW spatial interpolation of the full current data set for each of Cu,
+   Pb and Zn.
+2. perform IDW spatial interpolations for a reduced data set (subset of sample
+   locations) for each of Cu, Pb and Zn
+3. calculate a performance metric (see below) that quantifies the
+   total differences between the respective interpolations of full and
+   reduced configurations for each of Cu, Pb and Zn
+4. calculate the average of the Cu, Pb and Zn performance metrics
+   associated with the reduced configuration
+5. repeat steps 2-4 for a range of difference sample configurations
+   (sample sizes and locations) and compile the associated set of
+   performance metrics.
+6. use the relationship between sample size and performance metric to
+   help inform optimal sampling configuration.
+
+When candidate sample size is small ($n<5$), it is possible to iterate
+through every possible combination of sample configuration of $n$
+sites.  However, since the number of iterations is equal to
+$\frac{N!}{n!(N-n!)}$ (where $N$ is the total number of possible sites
+and $n$ is the number of sites in the configuration), as $n$
+increases, the number of iterations rapidly increases beyond what can
+be practically evaluated.  
+
+**Spatial simulated annealing** (SSA: @10.1007/978-94-017-1675-8_29)
+is a combinatorial optimisation algorithm in which the sampling
+configuration (for a given sample size) is iteratively perturbed in
+space and with each iteration, an objective function (measure of
+performance) is evaluated.  Perturbation occurs by replacing a site
+with another (within a specified distance). As the algorithm iterates,
+if the objective function indicates a better configuration, this
+configuration may be placed at the top of the candidate stack.  The
+likelihood by which a better configuration is placed at the top of the
+candidate stack depends on a property called _temperature_.
+Essentially, early on in the optimisation process, the temperature
+(probability of promoting a worse configuration) is high and this
+temperature declines throughout the optimisation.  This behaviour
+minimises the chances of the optimisation falling into a local maximum
+(actually minimum).
+
+The performance metric (objective function) used in the current study
+was the variance explained by a candidate configuration compared to
+the full configuration and was calculated over the interpolations at
+10,000 pixels in a grid (see Figure \@ref(fig:grid)) within the
+sampling domain.
+
+$$
+VE = 1- \frac{\sum{\omega_s (F_s-f_s)^2}}{\sum{\omega_s (F_s-\bar{f_s}})^2}
+$$
+
+where $\omega_s$ represents spatial weights (see below), $F_s$ the
+interpolations at each spatial grid location ($s$) predicted from the full
+configuration IDW, and $f_s$ the interpolations at each spatial grid
+location predicted from the reduced configuration IDW.
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/DH_grid.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r grid, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Illustration of the spatial grid used for interpolation of data within the a) Outer Harbour and b) Inner Harbour.',fig.id = "grid", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/DH_grid.png', dpi = 300)
+```
+    
+If the concentrations of Cu, Pb and Zn vary gradually over space
+(within a given sample size) the optimisation process is likely to
+favour relatively even spatial sampling configuration.  By contrast,
+if the concentrations of Cu, Pb and Zn vary erratically (with abrupt
+changes), the optimisation process is likely to suggest configurations
+in which the sampling sites are dense in some areas and relatively
+sparse in others.
+
+For the current application, there is also a desire to favour the
+preservation of sampling sites that are closer to urbanisation as it
+is anticipated that these sites are more likely to experience changes
+in sediment compositions with increasing run off and development
+pressures.  To accommodate this, the distance of each of the grid
+locations to the nearest water infrastructure feature was calculated -
+the inverse of which was used as the spatial weight ($\omega_s$).
+
+$$
+\omega_s = 1/D_s
+$$
+
+where $D_s$ is the distance of each spatial grid location ($s$) to the
+nearest water infrastructure feature.  These distances are illustrated
+in Figure \@ref(fig:urbanDistances).
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/DH_urbanDistances.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r urbanDistances, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Illustration of the distance to urbanisation projected across the spatial grid within the a) Outer Harbour and b) Inner Harbour.',fig.id = "urbanDistances", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/DH_urbanDistances.png', dpi = 300)
+```
+    
+
+
+The above spatial simulated annealing process is designed to optimise
+for a given sample size.  In order to explore a range of sample sizes,
+it is necessary to repeat the process for a range of sample sizes.  
+The current data set comprises of two site types: 1) fixed
+(designated) sites that form the core of the sediment sampling design
+and must always be sampled for other regulatory purposed and 2) free
+(random) sites that form the more discretionary component of the
+sampling design.  The optimisation process will only be focused on the
+_free_ sites - all candidate configurations will contain all of the
+fixed sites.  Hence, for the current application, the optimisation
+process will evaluate a sequence of free sample site numbers from a
+minimum of 2 up to the maximum number of free sites in the full
+configuration, with the sequence incrementing by 10 sites.
+
+Finally, each of the three focal measures (Cu, Pb and Zn) are present
+in the data set in both raw and normalised form.  The normalised
+versions are normalised against either Al or Fe depending on the the
+value of the ratio of Al:Fe (Al:Fe>1.3 are Fe normalised, otherwise
+they are Al normalised).  Moreover, there is a desire to focus more on
+the Al normalised values in the Inner Harbour and the Fe normalised
+values in the Outer Harbour.  Hence, the spatial simulated annealing
+optimisation procedure was repeated for the sequence of sample sizes
+(ranging from 2 to the number in the full configuration) for each
+combination of Inner and Outer Harbour, Normalised and Un-normalised
+(raw), weighted and unweighted by urbanisation.
+
+Spatial simulated annealing was performed via the _spsann_ package
+[@spsann] using a user-defined objective function that involved IDW
+interpolation perfomed with the _gstat_ package [@gstat].  All
+analyses and graphics were conducted within the R [@R] statistical and
+graphical environment.
+
+
+Optimising a sampling design is an inherently forward looking process.
+For example, in the current application, we aim to predict what
+reduced sampling configuration would be expected to continue to retain
+a substantial proportion of the available information.  
+
+We therefore need to make two very important assumptions:
+
+1. the uses of the information contained in the observed data in the
+   future will remain similar to its perceived uses at the time of
+   optimising.  The current optimisations assume that the data will be
+   used to explore the spatial distribution (and spatio-temporal
+   patterns) of Cu, Pb and Zn it the future.
+2. the broad spatial patterns don't experience dramatic spatial shifts
+   over time.  Large changes in the spatial covariance structures are
+   unlikely to be well served by optimisations.
+   
+<!--
+- Despite their widespread use across many disciplines, both the
+  Pearson product-moment correlation coefficient ($r$) and the
+  coefficient of determiniation ($r^2$) are known to be biased,
+  insufficient and missleading measures of assessing predictive model
+  accuracy (Assessing the accuracy of predictive models for numerical data: Not r nor r2, why not? Then what?) - PLoS ONE 2017.
+- modification of simulated annealing in which ...
+- maximising (optimisation) based on weighted variance explained 
+- proportion of the variance between
+-->
+
+<!--
+# Purpose
+
+In 2019, AIMS provided a report that used a spatially balanced design
+to inform a sediment monitoring design for Darwin Harbour.  After
+considering sediment deposition locations as well as shipping and
+other exclusion zones, a series of sampling configurations (number and
+locations of sites) were presented.
+
+The purpose of these analyses
+-->
+  
+
+# Results
+
+This section will focus only on the optimisation cycles that used
+performance measures weighted by urbanisation distance.  The
+unweighted versions will be presented in Appendix ?
+
+Each section will present the following outputs:
+
+- a plot of the variance explained against the number free sites
+  corresponding to the "best" configuration for that number of free
+  sites.  Variance explained is presented for each measure (Cu, Pb and
+  Zn) as well as the mean of the three measures.  As the number of
+  free sites in a configuration approaches the total number observed
+  in the full configuration, the variance explained will approach
+  100%.  An optimised configuration might be considered a
+  configuration that achieves a good balance between the retention of
+  spatial information (high variance explained) and the minimisation
+  of sampling effort.  _A priori_, such a balance could be defined
+  either as a plateauing of the curve (signifying that further
+  increases in the number of sites returns only very minor increases
+  in variance explained), or else the attainment of a sufficiently
+  high target variance explained (such as 95%).
+- a multipanel figure comparing the sampling configurations and
+  associated interpolations for the full and a single candidate
+  optimised configuration for each measure (Cu, Pb and Zn).
+ 
+It is important to recognise that the following analyses were based on
+a single sampling period.  Consequently, it was not possible to
+establish any temporal trends in the underlying patterns of
+variability, and thus, the analyses implicitly assume that these
+underlying patterns of variability will not drift appreciably over
+time.  For example, a suggested optimised configuration may fail to
+detect a very acute and localised spike in one or more of the
+measures in the future, if that spike occurs in a area for which the
+configuration is sparse.  
+
+Furthermore, the analyses assume that the analytical focus of sediment
+monitoring program will continue to be on estimating broad spatial
+patterns with emphasis on areas close to urbanisation.  It is also
+particularly important to note that these analyses leveraged a full
+sampling configuration that itself heavily biased sampling sites away
+from certain areas (such as shipping channels and other exclusion
+zones).  Hence, any suggested optimised configuration may turn out to
+be less than optimal if either these restrictions are changed in the
+future or else a new pressure is introduced in a sparsely sampled area
+that requires closer monitoring.  Such circumstances would warrant
+revisiting and possibly further refinement of the sampling design.
+
+
+## Inner Harbour
+
+### Raw data
+
+The spatial simulated annealing optimisations of raw data suggest that
+a sample design configuration comprising the 29 fixed sites and
+approximately 60 free sites weighted by distance to urbanisation
+yields over 95% of the patterns present from the full configuration
+(see Figure \@ref(fig:VEINRAWWTD)).  Furthermore, Figure
+\@ref(fig:VEINRAWWTD) indicates that increases in variance explained
+plateaus off with increasing numbers of sites beyond 60.
+
+Figure \@ref(fig:coplotINRAW60wtd) directly compares the spatial
+interpolations for the full versus optimised to 60 free sites
+configuration (weighted by distance from urbanisation).
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_IN__RAW_Weighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEINRAWWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the raw measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEINRAWWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_IN__RAW_Weighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_IN__RAW___60_wtd__raw.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_IN__RAW___60_wtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 60 free (maroon symbols) and 27 fixed (dark blue symbols) sites', fig.id = "coplotINRAW60wtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_IN__RAW___60_wtd__raw.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+### Normalised data
+
+The spatial simulated annealing optimisations of normalised data
+suggest that a sample design configuration comprising the 27 fixed
+sites and approximately 60 free sites weighted by distance to
+urbanisation yields over 95% of the patterns present from the full
+configuration (see Figure \@ref(fig:VEINNORMALISEDWTD)).  Furthermore,
+Figure \@ref(fig:VEINNORMALISEDWTD) indicates that increases in
+variance explained plateaus off with increasing numbers of sites
+beyond 60.
+
+Figure \@ref(fig:coplotINNORMALISED60wtd) directly compares the
+spatial interpolations for the full versus optimised to 60 free sites
+configuration (weighted by distance from urbanisation).
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_IN__NORMALISED_Weighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEINNORMALISEDWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the normalised measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEINNORMALISEDWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_IN__NORMALISED_Weighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_IN__NORMALISED___60_wtd__norm.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_IN__NORMALISED___60_wtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 60 free (maroon symbols) and 29 fixed (dark blue symbols) sites', fig.id = "coplotINNORMALISED60wtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_IN__NORMALISED___60_wtd__norm.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+## Outer Harbour
+
+### Raw data
+
+The spatial simulated annealing optimisations of raw data suggest that
+a sample design configuration comprising the 19 fixed sites and
+approximately 40 free sites weighted by distance to urbanisation
+yields over 95% of the patterns present from the full configuration
+(see Figure \@ref(fig:VEOHRAWWTD)).  Furthermore, Figure
+\@ref(fig:VEOHRAWWTD) indicates that increases in variance explained
+plateaus off with increasing numbers of sites beyond 40.
+
+Figure \@ref(fig:coplotOHRAW60wtd) directly compares the spatial
+interpolations for the full versus optimised to 40 free sites
+configuration (weighted by distance from urbanisation).
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_OH__RAW_Weighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEOHRAWWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the raw measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEOHRAWWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_OH__RAW_Weighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_OH__RAW___40_wtd__raw.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_OH__RAW___40_wtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 40 free (maroon symbols) and 19 fixed (dark blue symbols) sites', fig.id = "coplotOHRAW60wtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_OH__RAW___40_wtd__raw.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+### Normalised data
+
+The spatial simulated annealing optimisations of normalised data
+suggest that a sample design configuration comprising the 10 fixed
+sites and approximately 20 free sites weighted by distance to
+urbanisation yields over 95% of the patterns present from the full
+configuration (see Figure \@ref(fig:VEOHNORMALISEDWTD)).  Furthermore,
+Figure \@ref(fig:VEOHNORMALISEDWTD) indicates that increases in
+variance explained plateaus off with increasing numbers of sites
+beyond 60.
+
+Figure \@ref(fig:coplotOHNORMALISED60wtd) directly compares the
+spatial interpolations for the full versus optimised to 60 free sites
+configuration (weighted by distance from urbanisation).
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_OH__NORMALISED_Weighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEOHNORMALISEDWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the normalised measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEOHNORMALISEDWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_OH__NORMALISED_Weighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_OH__NORMALISED___20_wtd__norm.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_OH__NORMALISED___20_wtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 60 free (maroon symbols) and 10 fixed (dark blue symbols) sites', fig.id = "coplotOHNORMALISED60wtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_OH__NORMALISED___20_wtd__norm.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+ 
+ 
+
+
+# Appendix {.unnumbered} 
+
+## Unweighted optimisations
+	
+This appendix provides outputs equivalent to those featured in Section
+3 (Results) yet for optimisations that are not weighted by distance to
+urbanisation.
+
+### Inner Harbour
+
+#### Raw data
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_IN__RAW_Unweighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEINRAWUNWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEINRAWUNWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_IN__RAW_Unweighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_IN__RAW___60_unwtd__raw.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_IN__RAW___60_unwtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 60 free (maroon symbols) and 10 fixed (dark blue symbols) sites', fig.id = "coplotINRAW60unwtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_IN__RAW___60_unwtd__raw.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+#### Normalised data
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_IN__NORMALISED_Unweighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEINNORMALISEDUNWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the normalised measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEINNORMALISEDUNWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_IN__NORMALISED_Unweighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_IN__NORMALISED___60_unwtd__norm.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_IN__NORMALISED___60_unwtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 60 free (maroon symbols) and 10 fixed (dark blue symbols) sites', fig.id = "coplotINNORMALISED60unwtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_IN__NORMALISED___60_unwtd__norm.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+
+### Outer Harbour
+
+#### Raw data
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_OH__RAW_Unweighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEOHRAWUNWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEOHRAWUNWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_OH__RAW_Unweighted.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_OH__RAW___40_unwtd__raw.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_OH__RAW___40_unwtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 40 free (maroon symbols) and 10 fixed (dark blue symbols) sites', fig.id = "coplotOHRAW40unwtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_OH__RAW___40_unwtd__raw.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+
+#### Normalised data
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/VE_OH__NORMALISED_Unweighted.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r VEOHNORMALISEDUNWTD, echo=FALSE, fig.width=5, fig.asp = asp_rat, message = FALSE, fig.cap = 'Variance explained (y-axis) by the “best” configuration associated with each free sample size (x-axis) for weighted (by distance to urbanisation) spatial simulated annealing. Separate lines are presented for each of the normalised measures (Cu, Pb and Zn) as well as the mean of these. Note optimisation is based on the mean variance explained, the separate variance explained are provided for comparison of the sensitivity of each measure to sample size only. The dashed horizontal lines provide guides for 80, 90 and 95% variance explained by the configuration respectively.', fig.id = "VEOHNORMALISEDUNWTD", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/VE_OH__NORMALISED_Unweighted.png', dpi = 300)
+```
+
+
+<!---BLOCK_LANDSCAPE_START--->
+
+```{r echo=FALSE}
+library(imager)
+my_pic <- load.image("../output/figures/coplot_alt_OH__NORMALISED___20_unwtd__norm.png")
+asp_rat <- dim(my_pic)[2]/dim(my_pic)[1] #find our aspect ratio
+```
+```{r coplot_OH__NORMALISED___20_unwtd, echo=FALSE, fig.width=9, fig.asp = asp_rat, message = FALSE, fig.cap = 'Comparison of a) full sampling design configuration and b) sampling design configurations comprising of 20 free (maroon symbols) and 10 fixed (dark blue symbols) sites', fig.id = "coplotOHNORMALISED20unwtd", fig.cap.style = "Image Caption"}
+include_graphics(path = '../output/figures/coplot_alt_OH__NORMALISED___20_unwtd__norm.png', dpi = 300)
+```
+
+<!---BLOCK_LANDSCAPE_STOP--->
+
+
+<!--
+```{r fig.id="faithfuld-plot"}
+knitr::include_graphics("../output/figures/DH_urbanDistances.png") # Use your own figure here (I needed to test with knitr for my workflow)
+
+block_caption("First Appendix Figure",
+              style = "Image Caption",
+              autonum = run_autonum(seq_id = 'fig', 
+                                    bkm = 'faithfuld-plot',
+                                    pre_label = "Figure ",
+                                    start_at=1))
+```
+-->
+	
+## Production information
+
+This document was _knitted_ [@knitr] from an
+[Rmarkdown](https://rmarkdown.rstudio.com/) document using the
+_officedown_ [@officedown] package and compiled to docx format via the
+[pandoc](pandoc.org) universal format converted.  On first openning in
+either Microsoft Word, WPS or LibreOffice, it may be necessary to
+update all the fields (tables of contents, figure and table numbering
+etc).  To do so, select the entire document (`Cntr-A`) and click `F9`.
+
+The current report only presents the spatial interpolations for
+certain configurations - those identified as the optimal candidates.
+The full set of configurations can be explored from an interactive,
+self-contained html document location
+[here](https://apps.aims.gov.au/metadata/view/1af5519a-5d98-409d-bfe5-44b96c56cf78).
+
+The full codebase used to run the analyses underlying this report can
+be found by following the github link
+[here](https://apps.aims.gov.au/metadata/view/1af5519a-5d98-409d-bfe5-44b96c56cf78).
+
+# References

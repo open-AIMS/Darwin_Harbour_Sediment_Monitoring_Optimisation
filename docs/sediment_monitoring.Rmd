@@ -1,0 +1,1085 @@
+---
+title: "An evaluation of Darwin Harbour sediment monitoring design"
+author: "Murray Logan"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  html_document:
+    code_folding: hide
+    collapse: yes
+    df_print: paged
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: textmate
+    theme: spacelab
+    toc: yes
+    toc_float: yes
+    css: resources/Rmd-html-style.css
+  pdf_document:
+    df_print: default
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: tango
+    latex_engine: xelatex
+    number_sections: yes
+    toc_depth: 2
+  word_document:
+    fig_caption: yes
+    fig_height: 4
+    fig_width: 4
+    highlight: tango
+    toc: yes
+    toc_depth: 2
+output_dir: "docs"
+documentclass: article
+fontsize: 12pt
+mainfont: Arial
+mathfont: LiberationMono
+monofont: DejaVu Sans Mono
+classoption: a4paper
+bibliography: resources/references.bib
+---
+ 
+```{r setup, include=FALSE, warnings=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+options(tinytex.engine = 'xelatex')
+knitr::read_chunk('../scripts/DH_00_config.R')
+knitr::read_chunk('../scripts/DH_01_loadData.R')
+knitr::read_chunk('../scripts/DH_10_distance_to_urbanisation.R')
+knitr::read_chunk('../scripts/DH_40_fitModels.R')
+knitr::read_chunk('../scripts/DH_50_summaries.R')
+library(kableExtra)
+```
+  
+# Background
+
+AIMS previously [@Brinkman-2019] developed a series of spatially
+explicit and randomised designs for benthic sediment sampling in East
+Arm, the Outer Harbour, Middle Arm and West Arm of Darwin Harbour for
+a pilot project within the INPEX-funded Darwin Harbour Integrated
+Marine Monitoring and Research Program (IMMRP).  Subsequently, benthic
+samples were collected at most of the sites in the period between May
+2019 and September 2020, and were analysed for a range of chemical
+constituents in order to establish a comprehensive baseline for
+2019/20.
+
+# Current project scope
+
+Using data for copper (Cu), lead (Pb) and zinc (Zn) from the 2019/20
+baseline dataset, this study seeks to find optimal sampling designs
+for cost effectiveness.  Statistical models will be used to find the
+minimum number of sites that could yield similar overall patterns in
+normalised (to Al and Fe) and non-normalised Cu, Pb and Zn
+concentrations.
+
+# Overview of approach
+
+In looking to **optimise** a sampling design, it is first necessary to
+establish the metrics by which optimisation can be gauged.
+For the current application, we seek to optimise the number (and
+location) of sediment sampling locations such that we can reduce the
+number of samples without loosing too much "information".
+Hence, the metrics of optimisation will be expressed according to the
+(relative) amount of information encapsulated in any given sampling
+configuration.
+
+This information must be quantified with respect to how the data are
+expected to be used.  The current data are expected to be used to
+explore the spatial distribution (and spatio-temporal patterns) of Cu,
+Pb and Zn in the future.  Hence, we could perform such analyses for a
+range of different sample sizes (and locations) and compare the
+resulting patterns.  If we assume that the full current data set
+represents the maximum spatial configuration (and thus yields the most
+complete spatial pattern), the amount of information contained in each
+alternative configuration can be expressed as differences in the
+spatial patterns from this maximum configuration.
+
+The optimisation procedure will thus comprise the following steps:
+
+1. fit a spatial model for the full current data set for each of Cu,
+   Pb and Zn and use them to predict the spatial distribution of these
+   measures over a continuous 2D space.
+2. fit the same spatial model for a reduced data set (subset of sample
+   locations) for each of Cu, Pb and Zn and use them to predict the
+   spatial distribution of these measures over the same continuous 2
+   space.
+3. calculate a performance metric (see below) that quantifies the total
+   differences between the respective predicted spatial distributions
+   of full and reduced configurations for each of Cu, Pb and Zn.
+4. calculate the average of the Cu, Pb and Zn performance metrics
+   associated with the reduced configuration
+5. repeat steps 2-4 for a range of difference sample configurations
+   (sample sizes and locations) and compile the associated set of
+   performance metrics.
+6. use the relationship between sample size and performance metric to
+   help inform optimal sampling configuration.
+
+When candidate sample size is small ($n<5$), it is possible to iterate
+through every possible combination of sample configuration of $n$
+sites.  However, since the number of iterations is equal to
+$\frac{N!}{n!(N-n!)}$ (where $N$ is the total number of possible sites
+and $n$ is the number of sites in the configuration), as $n$
+increases, the number of iterations rapidly increases beyond what can
+be practically evaluated.  
+
+**Spatial simulated annealing** (SSA: @10.1007/978-94-017-1675-8_29)
+is a combinatorial optimisation algorithm in which the sampling
+configuration (for a given sample size) is iteratively perturbed in
+space and with each iteration, an objective function (measure of
+performance) is evaluated.  Perturbation occurs by replacing a site
+with another (within a specified distance). As the algorithm iterates,
+if the objective function indicates a better configuration, this
+configuration may be placed at the top of the candidate stack.  The
+likelihood by which a better configuration is placed at the top of the
+candidate stack depends on a property called _temperature_.
+Essentially, early on in the optimisation process, the temperature
+(probability of promoting a worse configuration) is high and this
+temperature declines throughout the optimisation.  This behaviour
+minimises the chances of the optimisation falling into a local maximum
+(actually minimum).
+
+The performance metric (objective function) used in the current study
+was the variance explained by a candidate configuration compared to
+the full configuration and was calculated over the predictions at
+10,000 pixels in a grid within the sampling domain.
+
+$$
+VE = 1- \frac{\sum{\omega_s (F_s-f_s)^2}}{\sum{\omega_s (F_s-\bar{f_s}})^2}
+$$
+
+where $\omega_s$ represents spatial weights (see below), $F_s$ the
+predictions at each spatial grid location ($s$) predicted from the full
+configuration model, and $f_s$ the predictions at each spatial grid
+location predicted from the reduced configuration model.
+
+If the concentrations of Cu, Pb and Zn vary gradually over space
+(within a given sample size) the optimisation process is likely to
+favour relatively even spatial sampling configuration.  By contrast,
+if the concentrations of Cu, Pb and Zn vary erratically (with abrupt
+changes), the optimisation process is likely to suggest configurations
+in which the sampling sites are dense in some areas and relatively
+sparse in others.
+
+For the current application, there is also a desire to favour the
+preservation of sampling sites that are closer to urbanisation as it
+is anticipated that these sites are more likely to experience changes
+in sediment compositions with increasing run off and development
+pressures.  To accommodate this, the distance of each of the grid
+locations to the nearest water infrastructure feature was calculated -
+the inverse of which was used as the spatial weight ($\omega_s$).
+
+$$
+\omega_s = 1/D_s
+$$
+
+where $D_s$ is the distance of each spatial grid location ($s$) to the
+nearest water infrastructure feature.
+
+The above spatial simulated annealing process is designed to optimise
+for a given sample size.  In order to explore a range of sample sizes,
+it is necessary to repeat the process for a range of sample sizes.  
+The current data set comprises of two site types: 1) fixed
+(designated) sites that form the core of the sediment sampling design
+and must always be sampled for other regulatory purposed and 2) free
+(random) sites that form the more discretionary component of the
+sampling design.  The optimisation process will only be focused on the
+_free_ sites - all candidate configurations will contain all of the
+fixed sites.  Hence, for the current application, the optimisation
+process will evaluate a sequence of free sample site numbers from a
+minimum of 2 up to the maximum number of free sites in the full
+configuration, with the sequence incrementing by 10 sites.
+
+Finally, each of the three focal measures (Cu, Pb and Zn) are present
+in the data set in both raw and normalised form.  The normalised
+versions are normalised against either Al or Fe depending on the the
+value of the ratio of Al:Fe (Al:Fe>1.3 are Fe normalised, otherwise
+they are Al normalised).  Moreover, there is a desire to focus more on
+the Al normalised values in the Inner Harbour and the Fe normalised
+values in the Outer Harbour.  Hence, the spatial simulated annealing
+optimisation procedure was repeated for the sequence of sample sizes
+(ranging from 2 to the number in the full configuration) for each
+combination of Inner and Outer Harbour, Normalised and Un-normalised
+(raw), weighted and unweighted by urbanisation.
+
+Spatial simulated annealing was performed via the _spsann_ package
+[@spsann] and all analyses and graphics were conducted within the R
+[@R] statistical and graphical environment.
+
+
+Optimising a sampling design is an inherently forward looking process.
+For example, in the current application, we aim to predict what
+reduced sampling configuration would be expected to continue to retain
+a substantial proportion of the available information.  
+
+We therefore need to make two very important assumptions:
+
+1. the uses of the information contained in the observed data in the
+   future will remain similar to its perceived uses at the time of
+   optimising.  The current optimisations assume that the data will be
+   used to explore the spatial distribution (and spatio-temporal
+   patterns) of Cu, Pb and Zn it the future.
+2. the broad spatial patterns don't experience dramatic spatial shifts
+   over time.  Large changes in the spatial covariance structures are
+   unlikely to be well served by optimisations.
+   
+<!--
+- Despite their widespread use across many disciplines, both the
+  Pearson product-moment correlation coefficient ($r$) and the
+  coefficient of determiniation ($r^2$) are known to be biased,
+  insufficient and missleading measures of assessing predictive model
+  accuracy (Assessing the accuracy of predictive models for numerical data: Not r nor r2, why not? Then what?) - PLoS ONE 2017.
+- modification of simulated annealing in which ...
+- maximising (optimisation) based on weighted variance explained 
+- proportion of the variance between
+-->
+
+<!--
+# Purpose
+
+In 2019, AIMS provided a report that used a spatially balanced design
+to inform a sediment monitoring design for Darwin Harbour.  After
+considering sediment deposition locations as well as shipping and
+other exclusion zones, a series of sampling configurations (number and
+locations of sites) were presented.
+
+The purpose of these analyses
+-->
+
+# Code preparation
+
+The information within this page aims to provide both an overview of
+the analyses and outputs as well as a glimpse of the code underlying
+those analyses.  To that end, code snippets relevant to each section
+of this document can be revealed via the `Code` buttons aligned on the
+right hand side.  When the presence of a large `Code` button is deemed
+too intrusive or the button takes up too much prime real estate, the
+code is instead placed within a `Details` reveal at the bottom of the
+section.
+
+In this particular section, the code snippets
+outline the suite of R packages used in the analyses as well as the
+generation of directory structures necessary to implement the code.
+
+The full code base used in this project is available for `clone` from
+[https://github.com/open-AIMS/DarwinHarbour_sediment_monitoring].
+Note, this repository does not include the primary data and thus
+serves as reference only - in the absence of the primary data, the
+repository will not reproduce the analyses and outputs herein.
+
+```{r packages, warnings=FALSE, message=FALSE, results='hide'}
+```
+```{r Paths, results='markdown', eval=TRUE}
+```
+
+# Load data {.tabset .tabset-faded}
+
+## Shapefiles {.tabset .tabset-pills}
+
+Many of the following shapefiles were provided by Lynda Radke via
+email.  These shapefiles will be used to define the spatial domains
+for predicting spatial patterns.
+
+### East Arm (City and Elizebeth River)
+```{r East Arm shapefiles, results='markdown', eval=TRUE}
+```
+```{r East Arm shapefiles plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/EA.sf.png') 
+```
+
+### Outer Harbour
+```{r Outer harbour shapefiles, results='markdown', eval=TRUE}
+```
+```{r Outer harbour shapefiles plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/OH.sf.png') 
+```
+
+### Middle Harbour and West Arm
+```{r Middle harbour and West Arm shapefiles, results='markdown', eval=TRUE}
+```
+```{r Middle harbour and West Arm shapefiles plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/MWA.sf.png') 
+```
+
+### Combine all shapefiles together
+```{r Combine shapefiles, results='markdown', eval=TRUE, cache=TRUE}
+```
+```{r Combine shapefiles plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/DH.sf.png') 
+```
+
+### Urbanisation (focal)
+
+In order to quantify the proximity of any location in the harbour to
+urbanisation, we have elected to use a water infrustructure features
+shapefile as a proxy for urbanisation.
+
+```{r Urbanisation shapefiles, results='markdown', eval=TRUE, cache=TRUE}
+```
+```{r Urbanisation shapefiles plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/urban.sf.png') 
+```
+
+### Darwin background map (Stamen)
+```{r Darwin Harbour background map, results='markdown', eval=TRUE, cache=TRUE}
+```
+```{r Darwin Harbour background map plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/DH.background.png') 
+```
+
+### Map
+```{r Shapefiles map, results='markdown', eval=TRUE, cache=TRUE}
+```
+```{r Shapefiles map plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/DH_map.png') 
+```
+ 
+## Sediment monitoring data {.tabset .tabset-pills}
+
+The following data were provided by Lynda Radke via email (22/13/2021
+& 12/01/2022).
+
+
+Ideally, Lynda would prefer that we explore the normalised values as she argues that these are more
+representative as they take into account grain size.
+
+- when the Fe/AL < 1.3, values are normalised against Al
+- when the Fe/Al > 1.3, values are normalised against Fe
+
+Unfortunately, these different normalisations result in different
+scales (ranges of values) and thus, putting Al and Fe normalised
+values into the one spatial analysis is problematic (particularly
+considering the grain size is confounded over space).
+
+### East Arm
+
+```{r East Arm.summary, results='markdown', eval=TRUE}
+```
+```{r East Arm.map plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/EA_map.png') 
+```
+
+```{r East Arm.map2 plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/EA_map2.png') 
+```
+
+<details><summary>Details</summary>
+1. Extract the name of the sheets in the spreadsheet
+```{r East Arm.sheets, results='markdown', eval=TRUE}
+```
+2. Import the data from the all data sheet
+```{r East Arm.load, results='markdown', eval=TRUE}
+```
+3. Tidy up the data
+```{r East Arm.tidy, results='markdown', eval=TRUE}
+```
+4. Convert to sf object
+```{r East Arm.sf, results='markdown', eval=TRUE}
+```
+</details>
+
+### Middle Harbour and West Arm
+
+```{r Middle Harbour and West Arm.summary, results='markdown', eval=TRUE}
+```
+```{r Middle Harbour and West Arm.map plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/MWA_map.png') 
+```
+
+```{r Middle Harbour and Arm.map2 plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/MWA_map2.png') 
+```
+
+<details><summary>Details</summary>
+1. Extract the name of the sheets in the spreadsheet
+```{r Middle Harbour and West Arm.sheets, results='markdown', eval=TRUE}
+```
+2. Import the data from the all data sheet
+```{r Middle Harbour and West Arm.load, results='markdown', eval=TRUE}
+```
+3. Tidy up the data
+```{r Middle Harbour and West Arm.tidy, results='markdown', eval=TRUE}
+```
+4. Convert to sf object
+```{r Middle Harbour and West Arm.sf, results='markdown', eval=TRUE}
+```
+</details>
+
+### Outer Harbour
+
+```{r Outer Harbour.summary, results='markdown', eval=TRUE}
+```
+```{r Outer Harbour.map plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/OH_map.png') 
+```
+
+```{r Outer Harbour.map2 plot, results='markdown', eval=TRUE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/OH_map2.png') 
+```
+
+<details><summary>Details</summary>
+1. Extract the name of the sheets in the spreadsheet
+```{r Outer Harbour.sheets, results='markdown', eval=TRUE}
+```
+2. Import the data from the all data sheet
+```{r Outer Harbour.load, results='markdown', eval=TRUE}
+```
+3. Tidy up the data
+
+The original Outer Harbour data did not have a field indicating which
+sites were 'designated' sites.  Lynda subsequently appended the excel
+spreadsheet to include an additional sheet ('designated') that just
+lists the designated sites.  I will use this to add a field into the
+OH data consistent with the other Regions (EA and MW) Hopefully, the
+`Site number` field is adequate to use as the key for the join
+
+```{r Outer Harbour.tidy, results='markdown', eval=TRUE}
+```
+4. Convert to sf object
+```{r Outer Harbour.sf, results='markdown', eval=TRUE}
+```
+</details>
+
+
+# Data preparation {.tabset .tabset-faded}
+
+Much of the sediment monitoring data preparation steps are outlined in
+the `Details` reveal of each harbour region's tab of `Load Data`.
+Hence this section will focus mainly on the generation of the spatial
+domain prediction grids and the calculations of distances to
+urbanisation.
+
+## Spatial prediction grid {.tabset .tabset-pills}
+
+The original (2019) sampling design was based on a spatially balanced
+randomised design and was intended to provide data that would
+facilitate modelling of spatial patterns in sediment chemistry.  
+Notwithstanding that some of the sampling locations (the fixed,
+designated sites) serve a dual purpose (both specific regulatory and
+for spatial modelling), the chemistry at the indivual sites is of less
+interest than the broader spatial patterns.  
+
+To explore broad spatial patterns, it is necessary to project modelled
+patterns onto a dense spatial grid.  Indeed, this spatial projection
+(prediction) grid will be used in this project to assess the relative
+performance of different sampling configurations.
+
+The density of a prediction grid is always a comprimise between
+granularity and computing constraints.  The higher the density of the
+grid (more points), the higher the granularity of the patterns, yet
+the longer the computation time.  Importantly, spatial models that
+capture the broader spatial patterns do so by estimating the patterns
+of covariance over space.  This process is itself constrained by the
+density of the observed data.  If for example the observed data are
+very sparse, it is not possible for spatial models (in the absence of
+any other data) to capture very convoluted spatial patterns.  As a
+result, there is very little advantage in projecting such patterns
+onto a very dense spatial grid - indeed, this might actually provide a
+missleading interpretation of the models.
+
+### Inner Harbour
+
+The following map illustrates the prediction grid points (+) overlayed
+onto the Inner Harbour polygons.
+
+```{r IN.grid.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/IN.grid.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+```{r full.domain.IN, results='markdown', eval=FALSE}
+```
+</details>
+
+### Outer Harbour
+
+The following map illustrates the prediction grid points (+) overlayed
+onto the Outer Harbour polygons.
+
+```{r OH.grid.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/OH.grid.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+```{r full.domain.OH, results='markdown', eval=FALSE}
+```
+</details>
+
+
+## Distances to urbanisation {.tabset .tabset-pills}
+<!--In addition to exploring the utility of each site with respect to its
+contribution to the overall spatial trends, there is also a desire to
+weight the utility of each site inversely proportional to the distance
+from urbanisation.  That is, sites that are closer to urbanisation
+should be valued higher than those that are further away.
+
+Ultimately, the utility of each site will be calculated as a
+combination of contribution to RMSE and inverse distance from
+urbanisation.
+
+In order to calculate distance based utility, the shortest distances
+of each site to their respective nearest urbanisation polygon were
+calculated.
+-->
+### East Arm sites
+
+The following illustrates the distance from each sediment sampling
+site to the nearest water infrustructure feature.
+
+```{r East Arm.urban.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/EA.urban.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+Remove one of the urbanisation polygons as it is in the middle of
+nowhere and probably not reflective of urbanisation in the sense that
+we are using it here.
+
+```{r Alter.urbanisation, results='markdown', eval=FALSE}
+```
+```{r EA.distance, results='markdown', eval=FALSE}
+```
+</details>
+
+
+
+### Middle Harbour and West Arm sites
+
+```{r Middle Arm.urban.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/MWA.urban.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+Remove one of the urbanisation polygons as it is in the middle of
+nowhere and probably not reflective of urbanisation in the sense that
+we are using it here.
+
+```{r Alter.urbanisation, results='markdown', eval=FALSE}
+```
+```{r MWA.distance, results='markdown', eval=FALSE}
+```
+</details>
+
+
+### Outer Harbour sites
+
+```{r Outer Harbour.urban.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/OH.urban.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+Remove one of the urbanisation polygons as it is in the middle of
+nowhere and probably not reflective of urbanisation in the sense that
+we are using it here.
+
+```{r Alter.urbanisation, results='markdown', eval=FALSE}
+```
+```{r OH.distance, results='markdown', eval=FALSE}
+```
+</details>
+
+### Inner Harbour (East Arm, Middle Harbour and West Arm) space
+
+The following map illustrates the distance of each Inner Harbour
+prediction grid point overlayed against the water infrustructure
+features.
+
+```{r Inner Harbour.urban.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/IN.urban_distances.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+Calculate the distance of each grid square to the nearest urbanisation
+feature.
+
+```{r full.domain.IN.distance, results='markdown', eval=FALSE}
+```
+```{r full.domain.coordinates, results='markdown', eval=FALSE}
+```
+
+</details>
+
+### Outer Harbour space
+
+The following map illustrates the distance of each Outer Harbour
+prediction grid point overlayed against the water infrustructure
+features.
+
+```{r Full Outer Harbour.urban.map plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/OH.urban_distances.sf.png') 
+```
+
+<details><summary>Details</summary>
+
+Calculate the distance of each grid square to the nearest urbanisation
+feature.
+
+```{r full.domain.OH.distance, results='markdown', eval=FALSE}
+```
+```{r full.domain.coordinates.OH, results='markdown', eval=FALSE}
+```
+
+</details>
+
+# Analyses {.tabset .tabset-faded}
+
+## Non-normalized data {.tabset .tabset-pills}
+
+### Inner harbour {.tabset .tabset-pills}
+
+:::: {.columns}
+
+::: {.column .left style="width:35%;"}
+
+The figures to the right illustrate the variance explained (y-axis) by
+the "best" configuration associated with each _free_ sample size
+(x-axis) for unweighted and weighted (by distance to urbanisation)
+spatial simulated annealing.  Separate lines are presented for each of
+the measures (Cu, Pb and Zn) as well as the mean of these.  Note
+optimisation is based on the mean variance explained, the separate
+variance explained are provided for comparison of the sensitivity of
+each measure to sample size only.  The dashed lines provide guides for
+80, 90 and 95% variance explained by the configuration respectively.
+
+:::
+
+::: {.column .center style="width:65%;"}
+
+```{r Inner Harbour.VE plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/VE_IN__RAW.png') 
+```
+ 
+:::
+
+::::
+
+#### Site configurations (comparisons) {.tabset .tabset-faded}
+
+##### Weighted patterns 
+
+```{r Inner Harbour.config plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_IN__RAW___wtd.png')
+```
+
+##### Unweighted patterns
+
+```{r Inner Harbour.config unwtd plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_IN__RAW___unwtd.png')
+```
+
+#### Site configurations (tables) {.tabset .tabset-faded}
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps configs raw wtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_IN__[0-9]*_wtd__raw.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_IN__([0-9]*)_wtd__raw.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_IN__',n,'_wtd__raw.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps configs raw unwtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_IN__[0-9]*_unwtd__raw.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_IN__([0-9]*)_unwtd__raw.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_IN__',n,'_unwtd__raw.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+#### Predicted patterns {.tabset .tabset-faded}
+
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_IN__RAW___[0-9]*_wtd__raw.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_IN__RAW___([0-9]*)_wtd__raw.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_IN__RAW___',n,'_wtd__raw.png)\n\n'))
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps unwtd plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_IN__RAW___[0-9]*_unwtd__raw.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_IN__RAW___([0-9]*)_unwtd__raw.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_IN__RAW___',n,'_unwtd__raw.png)\n\n'))
+   
+}
+```
+
+### Outer harbour {.tabset .tabset-pills}
+
+:::: {.columns}
+
+::: {.column .left style="width:35%;"}
+
+The figures to the right illustrate the variance explained (y-axis) by
+the "best" configuration associated with each _free_ sample size
+(x-axis) for unweighted and weighted (by distance to urbanisation)
+spatial simulated annealing.  Separate lines are presented for each of
+the measures (Cu, Pb and Zn) as well as the mean of these.  Note
+optimisation is based on the mean variance explained, the separate
+variance explained are provided for comparison of the sensitivity of
+each measure to sample size only.  The dashed lines provide guides for
+80, 90 and 95% variance explained by the configuration respectively.
+
+:::
+
+::: {.column .center style="width:65%;"}
+
+```{r Outer Harbour.VE plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/VE_OH__RAW.png') 
+```
+
+:::
+
+::::
+
+#### Site configurations (comparisons) {.tabset .tabset-faded}
+
+##### Weighted patterns 
+
+```{r Outer Harbour.config plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_OH__RAW___wtd.png')
+```
+
+##### Unweighted patterns
+
+```{r Outer Harbour.config unwtd plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_OH__RAW___unwtd.png')
+```
+
+#### Site configurations (tables) {.tabset .tabset-faded}
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps configs raw wtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_OH__[0-9]*_wtd__raw.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_OH__([0-9]*)_wtd__raw.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_OH__',n,'_wtd__raw.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps configs raw unwtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_OH__[0-9]*_unwtd__raw.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_OH__([0-9]*)_unwtd__raw.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_OH__',n,'_unwtd__raw.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+#### Predicted patterns {.tabset .tabset-faded}
+
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_OH__RAW___[0-9]*_wtd__raw.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_OH__RAW___([0-9]*)_wtd__raw.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_OH__RAW___',n,'_wtd__raw.png)\n\n'))
+   
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps unwtd plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_OH__RAW___[0-9]*_unwtd__raw.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_OH__RAW___([0-9]*)_unwtd__raw.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_OH__RAW___',n,'_unwtd__raw.png)\n\n'))
+   
+}
+```
+
+
+## Normalized data {.tabset .tabset-pills}
+
+### Inner harbour {.tabset .tabset-pills}
+
+:::: {.columns}
+
+::: {.column .left style="width:35%;"}
+
+The figures to the right illustrate the variance explained (y-axis) by
+the "best" configuration associated with each _free_ sample size
+(x-axis) for unweighted and weighted (by distance to urbanisation)
+spatial simulated annealing.  Separate lines are presented for each of
+the measures (Cu, Pb and Zn) as well as the mean of these.  Note
+optimisation is based on the mean variance explained, the separate
+variance explained are provided for comparison of the sensitivity of
+each measure to sample size only.  The dashed lines provide guides for
+80, 90 and 95% variance explained by the configuration respectively.
+
+:::
+
+::: {.column .center style="width:65%;"}
+
+```{r Inner Harbour.VE norm plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/VE_IN__NORMALISED.png')
+```
+
+:::
+
+::::
+
+#### Site configurations (comparisons) {.tabset .tabset-faded}
+
+##### Weighted patterns 
+
+```{r Inner Harbour.config norm plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_IN__NORMALISED___wtd.png')
+```
+
+##### Unweighted patterns
+
+```{r Inner Harbour.config norm unwtd plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_IN__NORMALISED___unwtd.png')
+```
+
+#### Site configurations (tables) {.tabset .tabset-faded}
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps configs wtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_IN__[0-9]*_wtd__norm.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_IN__([0-9]*)_wtd__norm.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_IN__',n,'_wtd__norm.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps configs unwtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_IN__[0-9]*_unwtd__norm.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_IN__([0-9]*)_unwtd__norm.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_IN__',n,'_unwtd__norm.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+ 
+#### Predicted patterns {.tabset .tabset-faded}
+
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps norm plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_IN__NORMALISED___[0-9]*_wtd__norm.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_IN__NORMALISED___([0-9]*)_wtd__norm.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_IN__NORMALISED___',n,'_wtd__norm.png)\n\n'))
+   
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Inner Harbour.maps norm unwtd plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_IN__NORMALISED___[0-9]*_unwtd__norm.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_IN__NORMALISED___([0-9]*)_unwtd__norm.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_IN__NORMALISED___',n,'_unwtd__norm.png)\n\n'))
+   
+}
+```
+
+
+### Outer harbour {.tabset .tabset-pills}
+
+:::: {.columns}
+
+::: {.column .left style="width:35%;"}
+
+The figures to the right illustrate the variance explained (y-axis) by
+the "best" configuration associated with each _free_ sample size
+(x-axis) for unweighted and weighted (by distance to urbanisation)
+spatial simulated annealing.  Separate lines are presented for each of
+the measures (Cu, Pb and Zn) as well as the mean of these.  Note
+optimisation is based on the mean variance explained, the separate
+variance explained are provided for comparison of the sensitivity of
+each measure to sample size only.  The dashed lines provide guides for
+80, 90 and 95% variance explained by the configuration respectively.
+
+:::
+
+::: {.column .center style="width:65%;"}
+
+```{r Outer Harbour.VE norm plot, results='markdown', eval=TRUE, echo=FALSE, fig.width=8, out.width=500}
+knitr::include_graphics('../output/figures/VE_OH__NORMALISED.png')
+```
+ 
+:::
+
+::::
+
+#### Site configurations (comparisons) {.tabset .tabset-faded}
+
+##### Weighted patterns 
+
+```{r Outer Harbour.config norm plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_OH__NORMALISED___wtd.png')
+```
+
+##### Unweighted patterns
+
+```{r Outer Harbour.config norm unwtd plot, results='markdown', eval=TRUE, fig.width=12, out.width=800}
+knitr::include_graphics('../output/figures/config_OH__NORMALISED___unwtd.png')
+```
+
+
+#### Site configurations (tables) {.tabset .tabset-faded}
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps configs wtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_OH__[0-9]*_wtd__norm.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_OH__([0-9]*)_wtd__norm.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_OH__',n,'_wtd__norm.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps configs unwtd, results='asis', eval=TRUE}
+files <- list.files(path=paste0('../data/processed/'),
+                    pattern = paste0('config_OH__[0-9]*_unwtd__norm.RData'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*config_OH__([0-9]*)_unwtd__norm.RData','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    load(paste0('../data/processed/config_OH__',n,'_unwtd__norm.RData'))
+    df %>%
+        kbl(booktabs = TRUE) %>%
+        kable_styling(bootstrap_options = 'condensed', font_size = 11) %>%
+        print()
+}
+```
+
+#### Predicted patterns {.tabset .tabset-faded}
+
+##### Weighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps norm plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_OH__NORMALISED___[0-9]*_wtd__norm.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_OH__NORMALISED___([0-9]*)_wtd__norm.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_OH__NORMALISED___',n,'_wtd__norm.png)\n\n'))
+   
+}
+```
+ 
+##### Unweighted patterns {.tabset .tabset-dropdown}
+
+```{r Outer Harbour.maps norm unwtd plot, results='asis', eval=TRUE, fig.width=12, out.width=800}
+files <- list.files(path=paste0('../output/figures/'),
+                    pattern = paste0('coplot_OH__NORMALISED___[0-9]*_unwtd__norm.png'),
+                    full.names = TRUE)
+N <- as.numeric(gsub('.*coplot_OH__NORMALISED___([0-9]*)_unwtd__norm.png','\\1',files))
+N <- sort(N)
+for (n in N) {
+    cat(paste0('###### ', n,' fixed sites\n\n'))
+    cat(paste0('![](../output/figures/coplot_OH__NORMALISED___',n,'_unwtd__norm.png)\n\n'))
+}
+```
+
+
+
+
+	
+# References
