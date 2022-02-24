@@ -1,142 +1,143 @@
+GOLDEN_RATIO <- (1 + sqrt(5))/2
+
 bb_aspect_ratio <- function(bb) {
     (bb[3] - bb[1])/(bb[4] - bb[2])
 }
 
 
 
-DH_fit_full <- function(REGION.sf, data.REGION.sf, full.coords.REGION) {
+DH_fit_full <- function(REGION.sf, data.REGION.sf, full.coords.REGION, plotit = FALSE) {
     if (METHOD == 'INLA') {
-        
         ## Create a boundary
         ## ---- Common setup
-    sf_use_s2(FALSE)
-    bndry <- REGION.sf %>%
-        st_union() %>%
-        st_coordinates() %>% 
-        `[`(,c('X','Y'))
-    save(bndry, file=paste0(DATA_PATH, 'processed/bndry_',REGION,'.RData'))
-    load(file=paste0(DATA_PATH, 'processed/bndry_',REGION,'.RData'))
-    
-    obs.coords <- DH_obs_coords(data.REGION.sf)
-    save(obs.coords, file=paste0(DATA_PATH, 'processed/obs.coords_',REGION,'.RData'))
-    load(file=paste0(DATA_PATH, 'processed/obs.coords_',REGION,'.RData'))
-    ## mesh <- DH_make_mesh(obs.coords, bndry)
-    mesh <- inla.mesh.2d(
-        loc = obs.coords[,c('Longitude','Latitude')],
-        ## boundary = bndry,
-        max.edge = c(0.015, 0.05),
-        cutoff = 0.001,
-        offset = c(0.05, 0.05)
-    )
-    save(mesh, file=paste0(DATA_PATH, 'processed/mesh_',REGION,'.RData'))
-    load(file=paste0(DATA_PATH, 'processed/mesh_',REGION,'.RData'))
-    
-    g <- ggplot() +
-        gg(mesh) +
-        geom_sf(data=IN.sf, fill='orange', alpha=0.1) +
-        geom_sf(data=data.IN.sf) +
-        theme_bw() +
-        theme(axis.title = element_blank())
-    ggsave(filename=paste0(OUTPUT_PATH,'figures/mesh_', REGION, '.png'), g, width=6, height = 6, dpi = 300)
-    ggsave(filename=paste0(OUTPUT_PATH,'figures/mesh_', REGION, '.pdf'), g, width=6, height = 6, dpi = 300)
-    ## full.coords <- IN.sf %>% st_sample(size=10000, type='regular') %>%
-    ##     st_as_sf() %>%
-    ##     mutate(Longitude = st_coordinates(.)[,1],
-    ##            Latitude = st_coordinates(.)[,2]) %>%
-    ##     st_drop_geometry()
-    
-    proj.grid <- inla.mesh.projector(mesh, loc=as.matrix(full.coords.REGION[,c('Longitude', 'Latitude')]))
-    proj.grid.obs <- inla.mesh.projector(mesh, loc=as.matrix(obs.coords))
-    spde <- inla.spde2.matern(mesh, alpha = 2)
-    i.spatial <- inla.spde.make.index('spatial.field',
-                                      n.spde = spde$n.spde)
-    ## ----end
+        sf_use_s2(FALSE)
+        bndry <- REGION.sf %>%
+            st_union() %>%
+            st_coordinates() %>% 
+            `[`(,c('X','Y'))
+        save(bndry, file=paste0(DATA_PATH, 'processed/bndry_',REGION,'.RData'))
+        load(file=paste0(DATA_PATH, 'processed/bndry_',REGION,'.RData'))
+        
+        obs.coords <- DH_obs_coords(data.REGION.sf)
+        save(obs.coords, file=paste0(DATA_PATH, 'processed/obs.coords_',REGION,'.RData'))
+        load(file=paste0(DATA_PATH, 'processed/obs.coords_',REGION,'.RData'))
+        ## mesh <- DH_make_mesh(obs.coords, bndry)
+        mesh <- inla.mesh.2d(
+            loc = obs.coords[,c('Longitude','Latitude')],
+            ## boundary = bndry,
+            max.edge = c(0.015, 0.05),
+            cutoff = 0.001,
+            offset = c(0.05, 0.05)
+        )
+        save(mesh, file=paste0(DATA_PATH, 'processed/mesh_',REGION,'.RData'))
+        load(file=paste0(DATA_PATH, 'processed/mesh_',REGION,'.RData'))
+        
+        g <- ggplot() +
+            gg(mesh) +
+            geom_sf(data=IN.sf, fill='orange', alpha=0.1) +
+            geom_sf(data=data.IN.sf) +
+            theme_bw() +
+            theme(axis.title = element_blank())
+        ggsave(filename=paste0(OUTPUT_PATH,'figures/mesh_', REGION, '.png'), g, width=6, height = 6, dpi = 300)
+        ggsave(filename=paste0(OUTPUT_PATH,'figures/mesh_', REGION, '.pdf'), g, width=6, height = 6, dpi = 300)
+        ## full.coords <- IN.sf %>% st_sample(size=10000, type='regular') %>%
+        ##     st_as_sf() %>%
+        ##     mutate(Longitude = st_coordinates(.)[,1],
+        ##            Latitude = st_coordinates(.)[,2]) %>%
+        ##     st_drop_geometry()
+        
+        proj.grid <- inla.mesh.projector(mesh, loc=as.matrix(full.coords.REGION[,c('Longitude', 'Latitude')]))
+        proj.grid.obs <- inla.mesh.projector(mesh, loc=as.matrix(obs.coords))
+        spde <- inla.spde2.matern(mesh, alpha = 2)
+        i.spatial <- inla.spde.make.index('spatial.field',
+                                          n.spde = spde$n.spde)
+        ## ----end
         newdata.full <- vector('list', length = length(RESPONSES))
         names(newdata.full) <- RESPONSES
         newdata.obs.full <- newdata.full
         for (Response in RESPONSES) {
             ## ---- full model
-        mod <- DH_make_and_fit_model(mesh, obs.coords, data.REGION.sf, response=Response)
-        newdata.full.i <- DH_predict_model(proj.grid, mod, full.coords.REGION, Response)
-        newdata.obs.full.i <- DH_predict_model(proj.grid.obs, mod, obs.coords, Response)
-        ## ----end
+            mod <- DH_make_and_fit_model(mesh, obs.coords, data.REGION.sf, response=Response)
+            newdata.full.i <- DH_predict_model(proj.grid, mod, full.coords.REGION, Response)
+            newdata.obs.full.i <- DH_predict_model(proj.grid.obs, mod, obs.coords, Response)
+            ## ----end
             ## ---- predict
-        mod.rf <- inla.mesh.project(proj.grid,
-                                    mod$summary.random$spatial.field$mean +
-                                    mod$summary.fixed['Intercept', 'mean'])
-        mod.obs.rf <- inla.mesh.project(proj.grid.obs,
+            mod.rf <- inla.mesh.project(proj.grid,
                                         mod$summary.random$spatial.field$mean +
                                         mod$summary.fixed['Intercept', 'mean'])
-        newdata.full[[Response]] <- full.coords.REGION %>%
-            as.data.frame() %>%
-            mutate({{Response}} := exp(mod.rf)) %>% 
-            mutate(Distance = full.coords.REGION$Distance)
-        newdata.obs.full[[Response]] <- obs.coords %>%
-            as.data.frame() %>%
-            mutate({{Response}} := exp(mod.obs.rf)) %>%
-            mutate(Distance = obs.coords[,'Distance'])
-        ## ----end
+            mod.obs.rf <- inla.mesh.project(proj.grid.obs,
+                                            mod$summary.random$spatial.field$mean +
+                                            mod$summary.fixed['Intercept', 'mean'])
+            newdata.full[[Response]] <- full.coords.REGION %>%
+                as.data.frame() %>%
+                mutate({{Response}} := exp(mod.rf)) %>% 
+                mutate(Distance = full.coords.REGION$Distance)
+            newdata.obs.full[[Response]] <- obs.coords %>%
+                as.data.frame() %>%
+                mutate({{Response}} := exp(mod.obs.rf)) %>%
+                mutate(Distance = obs.coords[,'Distance'])
+            ## ----end
         }
         ## ---- collate
-    newdata.full <- newdata.full %>%
-        reduce(left_join) %>%
-        dplyr::select(-matches('.*\\.([xy]|pred|var)$')) %>%
-        suppressMessages() %>%
-        suppressWarnings()
-    ## ----end
+        newdata.full <- newdata.full %>%
+            reduce(left_join) %>%
+            dplyr::select(-matches('.*\\.([xy]|pred|var)$')) %>%
+            suppressMessages() %>%
+            suppressWarnings()
+        ## ----end
 
         ## ---- plots
-    xbreaks <- REGION.sf %>% st_bbox() %>% `[`(c(1,3)) %>% 
-        scales::breaks_width(width=0.1)()
-    ybreaks <- REGION.sf %>% st_bbox() %>% `[`(c(2,4)) %>% 
-        scales::breaks_width(width=0.1)()
-    g1 <- vector('list', length(RESPONSES))
-    names(g1) <- RESPONSES
-    for (resp in RESPONSES) {
-        lims <- c(newdata.full %>% pull(resp)) %>% range()
-        lims[1] <- floor(lims[1])
-        lims[2] <- ceiling(lims[2])
-        g1[[resp]] <-
-            ggplot() +
-            geom_raster(data=newdata.full, aes(y=Latitude, x=Longitude, fill=!!sym(resp))) +
-            geom_sf(data=REGION.sf %>% st_union() %>% suppressMessages() %>% suppressWarnings(), fill=NA) +
-            scale_fill_gradientn(colors=fields::tim.colors(64), trans=scales::pseudo_log_trans(), limits=lims) +
+        xbreaks <- REGION.sf %>% st_bbox() %>% `[`(c(1,3)) %>% 
+            scales::breaks_width(width=0.1)()
+        ybreaks <- REGION.sf %>% st_bbox() %>% `[`(c(2,4)) %>% 
+            scales::breaks_width(width=0.1)()
+        g1 <- vector('list', length(RESPONSES))
+        names(g1) <- RESPONSES
+        for (resp in RESPONSES) {
+            lims <- c(newdata.full %>% pull(resp)) %>% range()
+            lims[1] <- floor(lims[1])
+            lims[2] <- ceiling(lims[2])
+            g1[[resp]] <-
+                ggplot() +
+                geom_raster(data=newdata.full, aes(y=Latitude, x=Longitude, fill=!!sym(resp))) +
+                geom_sf(data=REGION.sf %>% st_union() %>% suppressMessages() %>% suppressWarnings(), fill=NA) +
+                scale_fill_gradientn(colors=fields::tim.colors(64), trans=scales::pseudo_log_trans(), limits=lims) +
+                scale_x_continuous(breaks = xbreaks) +
+                scale_y_continuous(breaks = ybreaks) +
+                coord_sf(expand=FALSE) +
+                theme_bw() +
+                theme(axis.title = element_blank()) %>%
+                suppressWarnings() %>%
+                suppressMessages()
+        }
+        ## wrap_plots(g1, ncol=2)
+        
+        g2 <- ggplot() +
+            geom_sf(data = data.REGION.sf, aes(color = Site_Type), size=1) +
+            geom_sf(data = REGION.sf %>% st_union() %>% suppressMessages(), fill=NA) +
             scale_x_continuous(breaks = xbreaks) +
             scale_y_continuous(breaks = ybreaks) +
             coord_sf(expand=FALSE) +
             theme_bw() +
-            theme(axis.title = element_blank()) %>%
-            suppressWarnings() %>%
-            suppressMessages()
-    }
-    ## wrap_plots(g1, ncol=2)
-    
-    g2 <- ggplot() +
-        geom_sf(data = data.REGION.sf, aes(color = Site_Type), size=1) +
-        geom_sf(data = REGION.sf %>% st_union() %>% suppressMessages(), fill=NA) +
-        scale_x_continuous(breaks = xbreaks) +
-        scale_y_continuous(breaks = ybreaks) +
-        coord_sf(expand=FALSE) +
-        theme_bw() +
-        scale_color_manual('Site type', breaks = c('designated', 'random'), labels = c('Fixed', 'Free'),
-                           values = scales::hue_pal()(2))
-    g1[[length(g1)+1]] <- g2
-    
-    g <- wrap_plots(c(g1)) +
-        plot_annotation(tag_levels = 'a', tag_suffix=')') &
-        theme(plot.tag.position=c(0,1))
-    ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.png'), g,
-           width = 10, height = 10, dpi=300)
-    ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.pdf'), g,
-           width = 10, height = 10)
-    ## ----end
+            scale_color_manual('Site type', breaks = c('designated', 'random'), labels = c('Fixed', 'Free'),
+                               values = scales::hue_pal()(2))
+        g1[[length(g1)+1]] <- g2
+        
+        g <- wrap_plots(c(g1)) +
+            plot_annotation(tag_levels = 'a', tag_suffix=')') &
+            theme(plot.tag.position=c(0,1))
+        ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.png'), g,
+               width = 10, height = 10, dpi=300)
+        ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.pdf'), g,
+               width = 10, height = 10)
+        ## ----end
     } else if (METHOD =='krige') {
         ## ---- full model
         newdata.full.k <- vector('list', length = length(RESPONSES))
         names(newdata.full.k) <- RESPONSES
         for (Response in RESPONSES) {
             newdata.full.k[[Response]] <- DH_make_and_fit_model_krige(data.REGION.sf, response=Response) %>%
-                mutate(Distance = full.coords.IN$Distance)
+                mutate(Distance = full.coords.REGION$Distance)
         }
         ## ----end
         ## ---- collate
@@ -147,51 +148,57 @@ DH_fit_full <- function(REGION.sf, data.REGION.sf, full.coords.REGION) {
             suppressWarnings()
         ## ----end
         ## ---- plots
-    xbreaks <- REGION.sf %>% st_bbox() %>% `[`(c(1,3)) %>% 
-        scales::breaks_width(width=0.1)()
-    ybreaks <- REGION.sf %>% st_bbox() %>% `[`(c(2,4)) %>% 
-        scales::breaks_width(width=0.1)()
-    g1 <- vector('list', length(RESPONSES))
-    names(g1) <- RESPONSES
-    for (resp in RESPONSES) {
-        lims <- c(newdata.full.k %>% pull(resp)) %>% range()
-        lims[1] <- floor(lims[1])
-        lims[2] <- ceiling(lims[2])
-        g1[[resp]] <-
-            ggplot() +
-            geom_raster(data=newdata.full.k, aes(y=Latitude, x=Longitude, fill=!!sym(resp))) +
-            geom_sf(data=REGION.sf %>% st_union() %>% suppressMessages() %>% suppressWarnings(), fill=NA) +
-            scale_fill_gradientn(colors=fields::tim.colors(64), trans=scales::pseudo_log_trans(), limits=lims) +
-            scale_x_continuous(breaks = xbreaks) +
-            scale_y_continuous(breaks = ybreaks) +
-            coord_sf(expand=FALSE) +
-            theme_bw() +
-            theme(axis.title = element_blank()) %>%
-            suppressWarnings() %>%
-            suppressMessages()
-    }
-    ## wrap_plots(g1, ncol=2)
-    
-    g2 <- ggplot() +
-        geom_sf(data = data.REGION.sf, aes(color = Site_Type), size=1) +
-        geom_sf(data = REGION.sf %>% st_union() %>% suppressMessages(), fill=NA) +
-        scale_x_continuous(breaks = xbreaks) +
-        scale_y_continuous(breaks = ybreaks) +
-        coord_sf(expand=FALSE) +
-        theme_bw() +
-        scale_color_manual('Site type', breaks = c('designated', 'random'), labels = c('Fixed', 'Free'),
-                           values = scales::hue_pal()(2))
-    g1[[length(g1)+1]] <- g2
-    
-    g <- wrap_plots(c(g1)) +
-        plot_annotation(tag_levels = 'a', tag_suffix=')') &
-        theme(plot.tag.position=c(0,1))
-    g
-    ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.png'), g,
-           width = 10, height = 10, dpi=300)
-    ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.pdf'), g,
-           width = 10, height = 10)
-    ## ----end
+        if (plotit) {
+            xbreaks <- REGION.sf %>% st_bbox() %>% `[`(c(1,3)) %>% 
+                scales::breaks_width(width=0.1)()
+            ybreaks <- REGION.sf %>% st_bbox() %>% `[`(c(2,4)) %>% 
+                scales::breaks_width(width=0.1)()
+            g1 <- vector('list', length(RESPONSES))
+            names(g1) <- RESPONSES
+            for (resp in RESPONSES) {
+                lims <- c(newdata.full.k %>% pull(resp)) %>% range()
+                lims[1] <- floor(lims[1])
+                lims[2] <- ceiling(lims[2])
+                g1[[resp]] <-
+                    ggplot() +
+                    geom_raster(data=newdata.full.k, aes(y=Latitude, x=Longitude, fill=!!sym(resp))) +
+                    geom_sf(data=REGION.sf %>% st_union() %>% suppressMessages() %>% suppressWarnings(), fill=NA) +
+                    scale_fill_gradientn(colors=fields::tim.colors(64), trans=scales::pseudo_log_trans(), limits=lims) +
+                    scale_x_continuous(breaks = xbreaks) +
+                    scale_y_continuous(breaks = ybreaks) +
+                    coord_sf(expand=FALSE) +
+                    theme_bw() +
+                    theme(axis.title = element_blank()) %>%
+                    suppressWarnings() %>%
+                    suppressMessages()
+            }
+            ## wrap_plots(g1, ncol=2)
+            
+            g2 <- ggplot() +
+                geom_sf(data = data.REGION.sf, aes(color = Site_Type), size=1) +
+                geom_sf(data = REGION.sf %>% st_union() %>% suppressMessages(), fill=NA) +
+                scale_x_continuous(breaks = xbreaks) +
+                scale_y_continuous(breaks = ybreaks) +
+                coord_sf(expand=FALSE) +
+                theme_bw() +
+                scale_color_manual('Site type', breaks = c('designated', 'random'), labels = c('Fixed', 'Free'),
+                                   values = scales::hue_pal()(2))
+            g1[[length(g1)+1]] <- g2
+            
+            g <- wrap_plots(c(g1)) +
+                plot_annotation(tag_levels = 'a', tag_suffix=')') &
+                theme(plot.tag.position=c(0,1))
+            suppressWarnings(print(g))
+            
+            ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.png'),
+                   g,
+                   width = 10, height = 10, dpi=300) %>%
+                suppressWarnings()
+            ggsave(filename=paste0(OUTPUT_PATH, 'figures/',REGION,'.full_', METHOD,'.pdf'), g,
+                   width = 10, height = 10) %>%
+                suppressWarnings()
+        }
+        ## ----end
         newdata.full <- newdata.full.k
     }
     newdata.full
@@ -213,14 +220,26 @@ DH_make_and_fit_model_gam <- function(data.sf, response) {
     mod <- gam(form, data=data.sf, family = "Gamma")
     mod
 }
+
+
+## This one
 DH_make_and_fit_model_krige <- function(data.sf, response) {
-    form <- log(y) ~ 1 
-    data.sf <- data.sf %>% mutate(y := .[[response]])
-    krige(form, locations = data.sf, newdata = full.coords.IN.sf, debug.level = 0) %>%
+  full.coords.REGION.sf <<- full.coords.REGION.sf %>%
+    st_set_crs(st_crs(data.sf)) %>%
+    suppressMessages() %>%
+    suppressWarnings()
+  form <- log(y) ~ 1
+  data.sf <- data.sf %>% mutate(y := .[[response]])
+  krige(form, locations = data.sf, newdata = full.coords.REGION.sf, debug.level = 0) %>%
         mutate({{response}} := exp(var1.pred),
-           Longitude = st_coordinates(.)[,1],
-           Latitude = st_coordinates(.)[,2])
+               Longitude = st_coordinates(.)[,1],
+               Latitude = st_coordinates(.)[,2]) %>%
+        st_join(full.coords.REGION.sf %>% dplyr::select(Distance)) %>%
+        suppressMessages() %>%
+        suppressWarnings()
 }
+
+
 DH_predict_model <- function(proj.grid, mod, full.coords.IN, Response) {
     mod.rf <- inla.mesh.project(proj.grid,
                                 mod$summary.random$spatial.field$mean +
@@ -851,7 +870,7 @@ DH_loss_loop <- function(dat.sf,
 ## source('https://haakonbakka.bitbucket.io/functions-barriers-dt-models-march2017.R')
 ## They are reproduced here incase the aforementioned dissappears..
 ##############################################################################################
-source('functions-barriers-dt-models-march2017.R')
+source('../scripts/functions-barriers-dt-models-march2017.R')
 
 fitINLA.barriermodel = function(bndry, data, var, mesh.type='points',prior.range = c(1, .5), prior.sigma = c(3, 0.01), max.edge=0.02) {
 
@@ -966,4 +985,18 @@ fitINLA.barriermodel = function(bndry, data, var, mesh.type='points',prior.range
     field.proj = inla.mesh.projector(mesh, loc=coords.grid)
     newdata = data.frame(coords.grid, fit = exp(inla.mesh.project(field.proj, field)))
     return(list(fit=newdata, mesh=mesh, Omega.SP=Omega.SP, mod=mod))
+}
+
+
+length_width_ratios <- function(base_width = 1.2, ob.sf, plot_dims, g, ncol=NULL) {
+    plot.ratio <- 1/bb_aspect_ratio(st_bbox(ob.sf))
+    ## plot_dims <- ggplot2::wrap_dims(length(unique(fit$Date)), ncol = ncol) 
+    if (any(class(g) %in% c('gg','ggplot'))) g <- ggplotGrob(g)
+    bh <- grid::convertHeight(sum(g$heights), unitTo='in', valueOnly=TRUE)
+    bw <- grid::convertWidth(sum(g$widths), unitTo='in', valueOnly=TRUE)
+
+    plot_width = (base_width * plot_dims[1]) + bw
+    plot_height = (base_width*plot.ratio*plot_dims[2]) + bh
+    list(base_width = base_width, plot.ratio = plot.ratio[[1]], plot_dims = plot_dims, bh = bh, bw = bw,
+         fullwidth = plot_width[[1]], fullheight = plot_height[[1]])
 }
