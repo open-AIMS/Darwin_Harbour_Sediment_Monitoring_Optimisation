@@ -152,7 +152,16 @@ full.coords.IN <- full.coords.IN.sf %>%
     st_drop_geometry()
 save(full.coords.IN, file = paste0(DATA_PATH, 'processed/full.coords.IN.RData'))
 ## ----end
-
+## ---- full.domain.distance.raster
+IN.distance.raster <- full.coords.IN.sf %>%
+    st_rasterize(st_as_stars(st_bbox(full.coords.IN.sf),
+                             n = 10000,
+                             values = NA_real_))
+ggplot() + geom_stars(data=IN.distance.raster)
+write_stars(IN.distance.raster, paste0(DATA_PATH, 'processed/IN.distance.raster.tif'))
+IN.sf.out <- IN.sf %>% dplyr::select(OBJECTID, Zone_Name)
+write_sf(IN.sf.out, paste0(DATA_PATH, 'processed/IN.shp'))
+## ----end
 
 
 ## ---- full.domain.OH
@@ -209,6 +218,16 @@ full.coords.OH <- full.coords.OH.sf %>%
            Latitude = st_coordinates(.)[,2]) %>%
     st_drop_geometry()
 save(full.coords.OH, file = paste0(DATA_PATH, 'processed/full.coords.OH.RData'))
+## ----end
+## ---- full.domain.distance.raster
+OH.distance.raster <- full.coords.OH.sf %>%
+    st_rasterize(st_as_stars(st_bbox(full.coords.OH.sf),
+                             n = 10000,
+                             values = NA_real_))
+ggplot() + geom_stars(data=OH.distance.raster)
+write_stars(OH.distance.raster, paste0(DATA_PATH, 'processed/OH.distance.raster.tif'))
+OH.sf.out <- OH.sf %>% dplyr::select(OBJECTID, Zone_Name)
+write_sf(OH.sf.out, paste0(DATA_PATH, 'processed/OH.shp'))
 ## ----end
 
 ## ---- Grid

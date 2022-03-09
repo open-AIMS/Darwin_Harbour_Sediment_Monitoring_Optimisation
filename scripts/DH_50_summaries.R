@@ -209,91 +209,267 @@ for (REGION in c('IN', 'OH')) {
         write_csv(tab, file=paste0(OUTPUT_PATH, 'tables/tab_',REGION,'__', NORMALISED, '.csv'))
         ## ----end
         ## ---- map_config
-        results <- results %>%
-           mutate(Config = map(Sub,  
-                                ~DH_singleConfigMap(., REGION.sf = REGION.sf, data.REGION.sf = data.REGION.sf)
-                                )
+        {
+            ## ---- calcs
+            results <- results %>%
+                mutate(Config = map(Sub,  
+                                    ~DH_singleConfigMap(., REGION.sf = REGION.sf, data.REGION.sf = data.REGION.sf)
+                                    )
+                       )
+            ## ----end 
+            ## ---- Wtd 
+            fdims <- results %>%
+                filter(Weighted == 'wtd') %>%
+                ungroup %>%
+                group_by(nFree) %>%
+                count() %>%
+                nrow() %>%
+                wrap_dims()
+            wch <- which(fdims==max(fdims))
+            ## make the maximum dimensions the number of rows
+            g <- results %>%
+                filter(Weighted == 'wtd') %>%
+                arrange(nFree) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', nrow = fdims[wch]) +
+                plot_annotation(tag_levels = 'a', tag_suffix=')') 
+
+            plot.size <- length_width_ratios(base_width = 4.5, REGION.sf, fdims, g) 
+
+            ## plot.ratio <- bb_aspect_ratio(st_bbox(REGION.sf))
+            ## base_width <- 4.5
+            ## a = results[1,]$Config[[1]]
+            ## (bh <- grid::convertHeight(sum(ggplotGrob(a)$heights), unitTo='in', valueOnly=TRUE))
+            ## (bw <- grid::convertWidth(sum(ggplotGrob(a)$widths), unitTo='in', valueOnly=TRUE))
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd.pdf'),
+                   g,
+                   width = plot.size$fullwidth, #(base_width*fdims[-wch]) + bw,
+                   height = plot.size$fullheight #(base_width*plot.ratio + bh)*fdims[wch]
                    )
-        fdims <- results %>%
-            filter(Weighted == 'wtd') %>%
-            ungroup %>%
-            group_by(nFree) %>%
-            count() %>%
-            nrow() %>%
-            wrap_dims()
-        wch <- which(fdims==max(fdims))
-        ## make the maximum dimensions the number of rows
-        g <- results %>%
-            filter(Weighted == 'wtd') %>%
-            arrange(nFree) %>%
-            pull(Config) %>%
-            wrap_plots(guides = 'collect', nrow = fdims[wch]) +
-            plot_annotation(tag_levels = 'a', tag_suffix=')') 
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd.png'),
+                   g,
+                   width = plot.size$fullwidth,
+                   height = plot.size$fullheight,
+                   dpi = 100
+                   )
+            ## ----end
+            ## For the report, Lynda has requested IN be split into two figures and each larger.
+            ## Unlike the other plotting (which automatically arrange figures), the following will
+            ## manually configure the plots to achieve this.
+            if (REGION=='IN' & NORMALISED == FALSE) {
+                ## ---- IN_Raw
+            g <- results %>%
+                filter(Weighted =='wtd') %>%
+                arrange(nFree) %>%
+                filter(nFree<90) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', ncol = 3) +
+                plot_annotation(tag_levels = 'a', tag_suffix=')') &
+                theme(legend.position='bottom',#text=element_text(size=rel(5))
+                      title = element_text(size=rel(0.75)),
+                      axis.text = element_text(size=rel(0.5)),
+                      plot.tag = element_text(size=rel(1.25)),
+                      legend.text = element_text(size=rel(1)),
+                      legend.title = element_text(size=rel(4/3))
+                      ) &
+                guides(color = guide_legend(override.aes = list(size=3)))
+            plot.size <- length_width_ratios(base_width = 2.5, REGION.sf, c(3,3), g) 
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd_Part1.png'),
+                   g,
+                   width = plot.size$fullwidth,
+                   height = plot.size$fullheight,
+                   dpi = 300
+                   )
+            g <- results %>%
+                filter(Weighted =='wtd') %>%
+                arrange(nFree) %>%
+                filter(nFree>80) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', ncol = 3) +
+                plot_annotation(tag_levels = list(letters[10:18]), tag_suffix=')') &
+                theme(legend.position='bottom',#text=element_text(size=rel(5))
+                      title = element_text(size=rel(0.75)),
+                      axis.text = element_text(size=rel(0.5)),
+                      plot.tag = element_text(size=rel(1.25)),
+                      legend.text = element_text(size=rel(1)),
+                      legend.title = element_text(size=rel(4/3))
+                      ) &
+                guides(color = guide_legend(override.aes = list(size=3)))
+            plot.size <- length_width_ratios(base_width = 2.5, REGION.sf, c(3,3), g) 
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd_Part2.png'),
+                   g,
+                   width = plot.size$fullwidth,
+                   height = plot.size$fullheight,
+                   dpi = 300
+                   )
+            ## ----end
+            } else {  ## OH or IN NORMALISED
+                ## ---- OH_or_IN_Normalised
+                fdims <- results %>%
+                    filter(Weighted == 'wtd') %>%
+                    ungroup %>%
+                    group_by(nFree) %>%
+                    count() %>%
+                    nrow() %>%
+                    wrap_dims()
+                g <- results %>%
+                    filter(Weighted =='wtd') %>%
+                    arrange(nFree) %>%
+                                        #filter(nFree<90) %>%
+                    pull(Config) %>%
+                    wrap_plots(guides = 'collect', ncol = fdims[2]) +
+                    plot_annotation(tag_levels = 'a', tag_suffix=')') &
+                    theme(legend.position='bottom',#text=element_text(size=rel(5))
+                          title = element_text(size=rel(0.75)),
+                          axis.text = element_text(size=rel(0.5)),
+                          plot.tag = element_text(size=rel(1.25)),
+                          legend.text = element_text(size=rel(1)),
+                          legend.title = element_text(size=rel(4/3))
+                          ) &
+                    guides(color = guide_legend(override.aes = list(size=3)))
+                plot.size <- length_width_ratios(base_width = 2.5, REGION.sf, fdims, g) 
+                ## plot.size <- length_width_ratios(base_width = 1.5, REGION.sf, fdims, g) 
+                ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd_Part1.png'),
+                       g,
+                       width = ifelse(REGION=='OH',
+                                      plot.size$base_width * plot.size$plot_dims[2] + plot.size$bw,
+                                      plot.size$fullheight),
+                       height = ifelse(REGION=="OH",
+                                       plot.size$base_width * plot.size$plot_dims[1]* plot.size$plot.ratio + (2*plot.size$bh),
+                                       plot.size$fullheight),
+                       dpi = 300
+                       )
+                ## ----end
+            }
+            ## Now the unweighted versions ---------------------------------------------
+            ## ---- Unwtd 
+            fdims <- results %>%
+                filter(Weighted == 'unwtd') %>%
+                ungroup %>%
+                group_by(nFree) %>%
+                count() %>%
+                nrow() %>%
+                wrap_dims()
+            ## wch <- which(fdims==max(fdims))
+            g <- results %>%
+                filter(Weighted == 'unwtd') %>%
+                arrange(nFree) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', nrow = fdims[wch]) +
+                plot_annotation(tag_levels = 'a', tag_suffix=')') 
 
-        plot.size <- length_width_ratios(base_width = 4.5, REGION.sf, fdims, g) 
-
-        ## plot.ratio <- bb_aspect_ratio(st_bbox(REGION.sf))
-        ## base_width <- 4.5
-        ## a = results[1,]$Config[[1]]
-        ## (bh <- grid::convertHeight(sum(ggplotGrob(a)$heights), unitTo='in', valueOnly=TRUE))
-        ## (bw <- grid::convertWidth(sum(ggplotGrob(a)$widths), unitTo='in', valueOnly=TRUE))
-        ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd.pdf'),
-               g,
-               width = plot.size$fullwidth, #(base_width*fdims[-wch]) + bw,
-               height = plot.size$fullheight #(base_width*plot.ratio + bh)*fdims[wch]
-               )
-        ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___wtd.png'),
-               g,
-               width = plot.size$fullwidth,
-               height = plot.size$fullheight,
-               dpi = 100
-               )
-
-        fdims <- results %>%
-            filter(Weighted == 'unwtd') %>%
-            ungroup %>%
-            group_by(nFree) %>%
-            count() %>%
-            nrow() %>%
-            wrap_dims()
-        ## wch <- which(fdims==max(fdims))
-        g <- results %>%
-            filter(Weighted == 'unwtd') %>%
-            arrange(nFree) %>%
-            pull(Config) %>%
-            wrap_plots(guides = 'collect', nrow = fdims[wch]) +
-            plot_annotation(tag_levels = 'a', tag_suffix=')') 
-
-        plot.size <- length_width_ratios(base_width = 4.5, REGION.sf, fdims, g, ncol=6) 
-        ## plot.ratio <- bb_aspect_ratio(st_bbox(REGION.sf))
-        ## base_width <- 4.5
-        ## a = results[1,]$Config[[1]]
-        ## (bh <- grid::convertHeight(sum(ggplotGrob(a)$heights), unitTo='in', valueOnly=TRUE))
-        ## (bw <- grid::convertWidth(sum(ggplotGrob(a)$widths), unitTo='in', valueOnly=TRUE))
-        ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd.pdf'),
-               g,
-               width = plot.size$fullwidth, #(base_width*fdims[-wch]) + bw,
-               height = plot.size$fullheight #(base_width*plot.ratio + bh)*fdims[wch]
-               )
-        ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd.png'),
-               g,
-               width = plot.size$fullwidth,
-               height = plot.size$fullheight,
-               dpi = 100
-               )
-        ## Table data
-        walk2(.x=results$Sub,
-              .y=results$Label, 
-              .f = function(df, lab) {
-                  df <- df %>%
-                      mutate(Longitude = st_coordinates(.)[,1],
-                             Latitude = st_coordinates(.)[,2]) %>%
-                      st_drop_geometry() %>%
-                      dplyr::select(Region, Report_Card_Region, Site, Site_ID, Site_Type, Longitude, Latitude, Distance)
-                  save(df, file=paste0(DATA_PATH, 'processed/config_',REGION,'__',lab,'.RData'))
-                  write_csv(df, file=paste0(OUTPUT_PATH, 'tables/config_',REGION,'__', lab, '.csv'))
-              }
-              )
+            plot.size <- length_width_ratios(base_width = 4.5, REGION.sf, fdims, g, ncol=6) 
+            ## plot.ratio <- bb_aspect_ratio(st_bbox(REGION.sf))
+            ## base_width <- 4.5
+            ## a = results[1,]$Config[[1]]
+            ## (bh <- grid::convertHeight(sum(ggplotGrob(a)$heights), unitTo='in', valueOnly=TRUE))
+            ## (bw <- grid::convertWidth(sum(ggplotGrob(a)$widths), unitTo='in', valueOnly=TRUE))
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd.pdf'),
+                   g,
+                   width = plot.size$fullwidth, #(base_width*fdims[-wch]) + bw,
+                   height = plot.size$fullheight #(base_width*plot.ratio + bh)*fdims[wch]
+                   )
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd.png'),
+                   g,
+                   width = plot.size$fullwidth,
+                   height = plot.size$fullheight,
+                   dpi = 100
+                   )
+            ## Table data
+            walk2(.x=results$Sub,
+                  .y=results$Label, 
+                  .f = function(df, lab) {
+                      df <- df %>%
+                          mutate(Longitude = st_coordinates(.)[,1],
+                                 Latitude = st_coordinates(.)[,2]) %>%
+                          st_drop_geometry() %>%
+                          dplyr::select(Region, Report_Card_Region, Site, Site_ID, Site_Type, Longitude, Latitude, Distance)
+                      save(df, file=paste0(DATA_PATH, 'processed/config_',REGION,'__',lab,'.RData'))
+                      write_csv(df, file=paste0(OUTPUT_PATH, 'tables/config_',REGION,'__', lab, '.csv'))
+                  }
+                  )
+            ## ----end
+            ## For the report, Lynda has requested IN be split into two figures and each larger.
+            ## Unlike the other plotting (which automatically arrange figures), the following will
+            ## manually configure the plots to achieve this.
+            if (REGION=='IN') {
+                ## ---- IN_unwtd
+            g <- results %>%
+                filter(Weighted =='unwtd') %>%
+                arrange(nFree) %>%
+                filter(nFree<90) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', ncol = 3) +
+                plot_annotation(tag_levels = 'a', tag_suffix=')') &
+                theme(legend.position='bottom',#text=element_text(size=rel(5))
+                      title = element_text(size=rel(0.75)),
+                      axis.text = element_text(size=rel(0.5)),
+                      plot.tag = element_text(size=rel(1.25)),
+                      legend.text = element_text(size=rel(1)),
+                      legend.title = element_text(size=rel(4/3))
+                      ) &
+                guides(color = guide_legend(override.aes = list(size=3)))
+            plot.size <- length_width_ratios(base_width = 2.5, REGION.sf, c(3,3), g) 
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd_Part1.png'),
+                   g,
+                   width = plot.size$fullwidth,
+                   height = plot.size$fullheight,
+                   dpi = 300
+                   )
+            g <- results %>%
+                filter(Weighted =='unwtd') %>%
+                arrange(nFree) %>%
+                filter(nFree>80) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', ncol = 3) +
+                plot_annotation(tag_levels = list(letters[10:18]), tag_suffix=')') &
+                theme(legend.position='bottom',#text=element_text(size=rel(5))
+                      title = element_text(size=rel(0.75)),
+                      axis.text = element_text(size=rel(0.5)),
+                      plot.tag = element_text(size=rel(1.25)),
+                      legend.text = element_text(size=rel(1)),
+                      legend.title = element_text(size=rel(4/3))
+                      ) &
+                guides(color = guide_legend(override.aes = list(size=3)))
+            plot.size <- length_width_ratios(base_width = 2.5, REGION.sf, c(3,3), g) 
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd_Part2.png'),
+                   g,
+                   width = plot.size$fullwidth,
+                   height = plot.size$fullheight,
+                   dpi = 300
+                   )
+            ## ----end
+                
+            } else {  ## OH
+                ## ---- OH_unwtd
+            g <- results %>%
+                filter(Weighted =='unwtd') %>%
+                arrange(nFree) %>%
+                #filter(nFree<90) %>%
+                pull(Config) %>%
+                wrap_plots(guides = 'collect', ncol = 3) +
+                plot_annotation(tag_levels = 'a', tag_suffix=')') &
+                theme(legend.position='bottom',#text=element_text(size=rel(5))
+                      title = element_text(size=rel(0.75)),
+                      axis.text = element_text(size=rel(0.5)),
+                      plot.tag = element_text(size=rel(1.25)),
+                      legend.text = element_text(size=rel(1)),
+                      legend.title = element_text(size=rel(4/3))
+                      ) &
+                guides(color = guide_legend(override.aes = list(size=3)))
+            plot.size <- length_width_ratios(base_width = 2.5, REGION.sf, c(3,3), g) 
+            ggsave(paste0(OUTPUT_PATH, 'figures/config_',REGION,'__',ifelse(NORMALISED, 'NORMALISED', 'RAW'),'___unwtd_Part1.png'),
+                   g,
+                   ## width = plot.size$fullwidth, #plot.size$base_width * plot.size$plot_dims[2] + plot.size$bw,
+                   width = plot.size$base_width * plot.size$plot_dims[2] + plot.size$bw,
+                   ## height = plot.size$fullheight, #plot.size$base_width * plot.size$plot_dims[1]* plot.size$plot.ratio + (2*plot.size$bh),
+                   height = plot.size$base_width * plot.size$plot_dims[1]* plot.size$plot.ratio + (2*plot.size$bh),
+                   dpi = 300
+                   )
+           ## ----end 
+            }
+        }
+        
         ## ----end
         ## ---- map_pattern
         results <- results %>%
