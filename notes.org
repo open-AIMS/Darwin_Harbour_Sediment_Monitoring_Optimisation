@@ -29,14 +29,18 @@ Some of my takings from the meeting are:
 5. open docs/sediment_monotoring_word.docx in WPS
    1. Cntrl-A F9 F9 to update all fields
    2. click on footer and F9 to update fields
-   3. select tables and change format
-   4. save
+   3. Click on the TOC and then click on References -> Update TOC
+   4. select tables and change format
+   5. add charage returns to the reference list
+   6. save
    
 
    
 - use officedown
 - after loading into Word, must update all the fields (Cntl-A, F9 F9)
 - need to calculate the aspect ratio for figures imported.
+
+* 
 
 * Webpages etc
 
